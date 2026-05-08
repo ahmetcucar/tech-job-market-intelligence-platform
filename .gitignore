@@ -1,0 +1,21 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local/generated outputs
+data/
+exports/
+logs/
+*.log
+
+# Test/build artifacts
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
