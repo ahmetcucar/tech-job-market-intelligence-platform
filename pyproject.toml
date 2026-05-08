@@ -1,0 +1,32 @@
+[project]
+name = "tech-job-market-intelligence"
+version = "0.1.0"
+description = "MVP pipeline for ingesting and analyzing public tech job postings."
+requires-python = ">=3.11"
+dependencies = [
+    "beautifulsoup4>=4.12.3",
+    "psycopg[binary]>=3.2.1",
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.2",
+    "ruff>=0.6.8",
+]
+
+[project.scripts]
+ingest-greenhouse = "job_market_intel.ingestion.greenhouse:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
