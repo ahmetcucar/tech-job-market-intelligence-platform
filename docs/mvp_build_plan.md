@@ -43,16 +43,22 @@ Greenhouse public boards
         ↓
 Python ingestion script
         ↓
-Raw payload storage
+Bronze raw payload storage
         ↓
-Normalization step
+Silver canonical job records
         ↓
-Postgres tables
+Rules-based normalization
         ↓
 Rules-based skill extraction
         ↓
 Streamlit search and dashboard UI
 ```
+
+The first data model should follow a simple Bronze/Silver/Gold progression:
+
+- **Bronze:** preserve raw Greenhouse job objects for reproducibility.
+- **Silver:** extract stable canonical job fields for search, filtering, and skill extraction.
+- **Gold:** start as dashboard SQL queries; promote to tables or views later if needed.
 
 ## Milestone 1: Ingest Greenhouse Jobs
 
@@ -72,7 +78,7 @@ Done when:
 
 ## Milestone 2: Store Raw And Canonical Data
 
-Create Postgres tables for raw and normalized job data.
+Create Postgres tables for raw and normalized job data. The schema should be based on fields observed in real Greenhouse responses, not guessed in advance.
 
 Initial raw table:
 
@@ -87,6 +93,8 @@ raw_job_payloads
 - payload_json
 ```
 
+The raw table is the Bronze layer. It stores the full source job object so parsing and normalization can be rerun later.
+
 Initial canonical table:
 
 ```text
@@ -95,18 +103,44 @@ canonical_jobs
 - source_name
 - source_company
 - source_job_id
+- source_internal_job_id
+- requisition_id
 - company_name
 - title
 - normalized_title
-- department
-- location
+- location_name
+- office_location
+- department_name
 - remote_type
-- description
+- seniority
 - job_url
+- source_published_at
+- source_updated_at
+- description_html
+- description_text
+- salary_min
+- salary_max
+- currency
 - first_seen_at
 - last_seen_at
 - is_active
 ```
+
+The canonical table is the first Silver layer. It extracts fields we clearly understand from the source:
+
+- Greenhouse `id` becomes `source_job_id`
+- Greenhouse `internal_job_id` becomes `source_internal_job_id`
+- Greenhouse `requisition_id` becomes `requisition_id`
+- Greenhouse `company_name` becomes `company_name`
+- Greenhouse `location.name` becomes `location_name`
+- Greenhouse `offices[].location` can inform `office_location`
+- Greenhouse `departments[].name` can inform `department_name`
+- Greenhouse `absolute_url` becomes `job_url`
+- Greenhouse `first_published` becomes `source_published_at`
+- Greenhouse `updated_at` becomes `source_updated_at`
+- Greenhouse `content` becomes `description_html`, then cleaned into `description_text`
+
+Fields such as `normalized_title`, `remote_type`, `seniority`, and salary fields are derived or normalized fields. They can start as `unknown` or `NULL` when the source does not clearly provide them.
 
 Done when:
 
@@ -114,6 +148,7 @@ Done when:
 - cleaned job records land in `canonical_jobs`
 - each canonical job has a stable unique ID
 - rerunning ingestion updates `last_seen_at` for existing jobs
+- source-provided timestamps are preserved separately from ingestion timestamps
 
 ## Milestone 3: Normalize Core Fields
 
@@ -137,10 +172,21 @@ Normalize remote status into:
 - onsite
 - unknown
 
+Normalize seniority into:
+
+- intern
+- junior
+- mid
+- senior
+- staff
+- manager
+- unknown
+
 Done when:
 
 - most ingested jobs have a usable `normalized_title`
 - remote/hybrid/onsite status can be filtered in the UI
+- seniority is populated when obvious from the title or description
 - unknown values are allowed and visible instead of hidden
 
 ## Milestone 4: Add Rules-Based Skill Extraction
