@@ -1,0 +1,21 @@
+companies:
+  - name: Databricks
+    board_token: databricks
+  - name: Cloudflare
+    board_token: cloudflare
+  - name: DoorDash
+    board_token: doordashusa
+  - name: Reddit
+    board_token: reddit
+  - name: Airbnb
+    board_token: airbnb
+  - name: Figma
+    board_token: figma
+  - name: Anthropic
+    board_token: anthropic
+  - name: Asana
+    board_token: asana
+  - name: Dropbox
+    board_token: dropbox
+  - name: GitLab
+    board_token: gitlab
