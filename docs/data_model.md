@@ -11,19 +11,21 @@ Raw     ->  Clean   ->  Analytics/Product
 
 The early implementation should favor learning and reproducibility over a perfect final schema. Store raw data first, extract only fields we clearly understand, and promote fields into richer dimensions only after the source patterns are proven across multiple companies.
 
-## Entity Relationship Diagram
+## MVP Data Layer Diagram
 
 ```mermaid
-erDiagram
-    DIM_COMPANY ||--o{ FACT_JOB_POSTING : posts
-    DIM_LOCATION ||--o{ FACT_JOB_POSTING : located_in
-    DIM_TIME ||--o{ FACT_JOB_POSTING : posted_on
-    FACT_JOB_POSTING ||--o{ BRIDGE_JOB_SKILL : requires
-    DIM_SKILL ||--o{ BRIDGE_JOB_SKILL : appears_in
-    FACT_JOB_POSTING ||--o{ JOB_EMBEDDING : embedded_as
-    FACT_JOB_POSTING ||--o{ RESUME_JOB_MATCH : matched_against
-    USER_RESUME ||--o{ RESUME_JOB_MATCH : produces
+flowchart LR
+    greenhouse["Greenhouse API"] --> raw["raw_job_payloads<br/>Bronze"]
+    raw --> canonical["canonical_jobs<br/>Silver"]
+    canonical --> jobSkills["job_skills<br/>Silver enrichment"]
+    skills["skills<br/>Skill taxonomy"] --> jobSkills
+    canonical --> dashboard["Streamlit dashboard queries<br/>Gold for MVP"]
+    jobSkills --> dashboard
+    canonical --> futureAi["Future AI tables<br/>embeddings and resume matches"]
+    jobSkills --> futureAi
 ```
+
+The MVP starts with a simple layered model instead of a fully normalized warehouse. Future dimensions and fact tables can be introduced after the source patterns are clearer.
 
 ## Bronze Layer
 
