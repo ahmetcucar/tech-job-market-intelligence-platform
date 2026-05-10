@@ -13,6 +13,17 @@ class FakeInsertResult:
     inserted: bool
 
 
+class FakeConnection:
+    """Connection test double that records commit calls."""
+
+    def __init__(self) -> None:
+        self.commits = 0
+
+    def commit(self) -> None:
+        """Record one transaction commit."""
+        self.commits += 1
+
+
 def test_ingest_greenhouse_companies_processes_all_configured_companies() -> None:
     """Every configured company and fetched job should be passed to Bronze storage."""
     companies = [
@@ -40,7 +51,7 @@ def test_ingest_greenhouse_companies_processes_all_configured_companies() -> Non
         return FakeInsertResult(inserted=True)
 
     summary = ingest_greenhouse_companies(
-        connection=object(),
+        connection=FakeConnection(),
         companies=companies,
         fetch_jobs=fetch_jobs,
         insert_job=insert_job,
@@ -75,7 +86,7 @@ def test_ingest_greenhouse_companies_counts_skipped_payloads() -> None:
         return FakeInsertResult(inserted=False)
 
     summary = ingest_greenhouse_companies(
-        connection=object(),
+        connection=FakeConnection(),
         companies=companies,
         fetch_jobs=fetch_jobs,
         insert_job=insert_job,
@@ -84,3 +95,34 @@ def test_ingest_greenhouse_companies_counts_skipped_payloads() -> None:
     assert summary.jobs_fetched == 1
     assert summary.payloads_inserted == 0
     assert summary.payloads_skipped == 1
+
+
+def test_ingest_greenhouse_companies_commits_after_each_company() -> None:
+    """Each company batch should commit independently after its jobs are stored."""
+    companies = [
+        {"name": "Databricks", "board_token": "databricks"},
+        {"name": "Cloudflare", "board_token": "cloudflare"},
+    ]
+    connection = FakeConnection()
+
+    def fetch_jobs(board_token: str) -> list[dict[str, Any]]:
+        return [{"id": board_token, "title": "Data Engineer"}]
+
+    def insert_job(
+        connection: object,
+        *,
+        source_name: str,
+        source_company: str,
+        source_job_id: str,
+        payload: dict[str, Any],
+    ) -> FakeInsertResult:
+        return FakeInsertResult(inserted=True)
+
+    ingest_greenhouse_companies(
+        connection=connection,
+        companies=companies,
+        fetch_jobs=fetch_jobs,
+        insert_job=insert_job,
+    )
+
+    assert connection.commits == 2

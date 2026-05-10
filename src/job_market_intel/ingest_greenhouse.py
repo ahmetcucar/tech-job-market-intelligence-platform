@@ -32,6 +32,13 @@ class InsertRawJob(Protocol):
         """Insert one source job payload and return insert metadata."""
 
 
+class CommitConnection(Protocol):
+    """Minimal connection behavior needed by the ingest command."""
+
+    def commit(self) -> None:
+        """Commit the current transaction."""
+
+
 @dataclass(frozen=True)
 class IngestSummary:
     """Counts produced by one Greenhouse Bronze ingestion run."""
@@ -44,7 +51,7 @@ class IngestSummary:
 
 def ingest_greenhouse_companies(
     *,
-    connection: object,
+    connection: CommitConnection,
     companies: Sequence[dict[str, Any]],
     fetch_jobs: Callable[[str], list[dict[str, Any]]] = fetch_greenhouse_jobs,
     insert_job: InsertRawJob = insert_raw_job_payload,
@@ -85,6 +92,8 @@ def ingest_greenhouse_companies(
             else:
                 payloads_skipped += 1
 
+        connection.commit()
+
     return IngestSummary(
         companies_processed=len(companies),
         jobs_fetched=jobs_fetched,
@@ -99,7 +108,6 @@ def main() -> None:
 
     with connect() as connection:
         summary = ingest_greenhouse_companies(connection=connection, companies=companies)
-        connection.commit()
 
     print(f"Companies processed: {summary.companies_processed}")
     print(f"Jobs fetched: {summary.jobs_fetched}")

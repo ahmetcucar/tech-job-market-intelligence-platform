@@ -49,7 +49,8 @@ def test_insert_raw_job_payload_builds_identity_and_insert_statement() -> None:
     assert result.payload_hash == expected_hash
     assert result.raw_payload_id == raw_payload_id("greenhouse", "Databricks", "123", expected_hash)
     assert connection.sql is not None
-    assert "ON CONFLICT DO NOTHING" in connection.sql
+    assert "ON CONFLICT (source_name, source_company, source_job_id, payload_hash)" in connection.sql
+    assert "DO NOTHING" in connection.sql
     assert connection.params is not None
     assert connection.params["source_name"] == "greenhouse"
     assert connection.params["source_company"] == "Databricks"

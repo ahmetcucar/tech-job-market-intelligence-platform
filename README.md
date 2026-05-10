@@ -89,6 +89,14 @@ Create the initial raw table:
 psql postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket -f sql/001_init.sql
 ```
 
+Store raw Greenhouse payloads for all configured companies:
+
+```bash
+ingest-greenhouse
+```
+
+The command is idempotent for identical payload versions. Rerunning it should report skipped payloads instead of inserting duplicates.
+
 ## Target Stack
 
 - **Ingestion:** Python, scheduled jobs, source-specific connectors

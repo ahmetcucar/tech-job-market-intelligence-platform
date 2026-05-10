@@ -81,7 +81,8 @@ def insert_raw_job_payload(
             %(payload_hash)s,
             %(payload_json)s
         )
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (source_name, source_company, source_job_id, payload_hash)
+        DO NOTHING
         """,
         {
             "raw_payload_id": raw_id,
