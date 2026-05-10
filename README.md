@@ -43,19 +43,7 @@ The first version should prove the core loop:
 
 ## Getting Started With The MVP
 
-The first build starts with Greenhouse ingestion, Postgres storage, and then Streamlit.
-
-Start Postgres:
-
-```bash
-docker compose up -d
-```
-
-Create the initial tables:
-
-```bash
-psql postgresql://jobmarket:jobmarket@localhost:5432/jobmarket -f sql/001_init.sql
-```
+The first build starts with Greenhouse source discovery, then Bronze raw payload storage in Postgres, then Streamlit.
 
 Create a virtual environment and install the project:
 
@@ -65,13 +53,41 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Run the Greenhouse ingestion:
+### Milestone 1: Fetch Greenhouse Jobs
+
+Verify the Greenhouse config loader and API client:
 
 ```bash
-ingest-greenhouse
+python -m job_market_intel.preview_greenhouse
 ```
 
-The initial Greenhouse company list lives in `config/greenhouse_companies.yml`.
+Expected output shape:
+
+```text
+Company: Databricks
+Board token: databricks
+Jobs fetched: 812
+First job title: ...
+First job ID: ...
+```
+
+The job count and first job may change as Greenhouse postings change. The important thing is that the command loads a configured company, fetches jobs, and prints a small summary without writing to the database.
+
+The Greenhouse company list lives in `config/greenhouse_companies.yml`.
+
+### Milestone 2: Store Bronze Raw Payloads
+
+Start Postgres:
+
+```bash
+docker compose up -d
+```
+
+Create the initial raw table:
+
+```bash
+psql postgresql://jobmarket:jobmarket@127.0.0.1:5432/jobmarket -f sql/001_init.sql
+```
 
 ## Target Stack
 
