@@ -46,7 +46,8 @@ The purpose of Bronze is to make ingestion auditable:
 | source_name | string | Source system, such as Greenhouse or Lever |
 | source_company | string | Source-specific company or board token, such as a Greenhouse board token |
 | source_job_id | string | Job ID from the source |
-| fetched_at | timestamp | Time the source was fetched |
+| fetched_at | timestamp | Time this exact payload version was first fetched |
+| last_seen_at | timestamp | Most recent time this exact payload version was observed |
 | payload_json | json | Raw job object from the source |
 | payload_hash | string | Used to detect changes |
 
@@ -75,6 +76,7 @@ This gives the ingestion process a simple rule:
 
 - If the same source job returns the same payload hash, the exact version was already seen.
 - If the same source job returns a different payload hash, the source job changed and a new raw version should be stored.
+- If the same source job returns the same payload hash again, update `last_seen_at` on that raw version without changing `payload_json`.
 
 The insert pattern should be:
 
@@ -82,10 +84,10 @@ The insert pattern should be:
 INSERT INTO raw_job_payloads (...)
 VALUES (...)
 ON CONFLICT (source_name, source_company, source_job_id, payload_hash)
-DO NOTHING;
+DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at;
 ```
 
-This lets Postgres handle duplicate detection. The ingestion code can use the insert result to decide whether downstream processing is needed.
+This lets Postgres preserve one raw row per exact payload version while still recording the most recent observation time for unchanged postings.
 
 Mental model:
 
@@ -93,6 +95,7 @@ Mental model:
 source_job_id identifies the job
 payload_hash identifies the version of the job
 raw_payload_id identifies the stored row for that exact version
+last_seen_at identifies when that exact version was most recently observed
 ```
 
 Bronze stores raw version history. Silver can then represent the latest normalized state of each job.

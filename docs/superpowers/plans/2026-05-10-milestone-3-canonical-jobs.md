@@ -344,8 +344,8 @@ Create:
 - `RawPayloadRow`
 - `TransformSummary`
 - `canonical_record_from_raw_payload(...)`
-- `iter_raw_payload_rows(connection)`
-- `transform_canonical_jobs(connection, upsert_job=upsert_canonical_job)`
+- `iter_raw_payload_rows(connection, source_company=None)`
+- `transform_canonical_jobs(connection, upsert_job=upsert_canonical_job, source_company=None)`
 - `parse_args(argv=None)`
 - `main()`
 
@@ -354,6 +354,9 @@ Read Bronze rows ordered by:
 ```sql
 source_name, source_company, source_job_id, fetched_at, raw_payload_id
 ```
+
+Select both `fetched_at` and `last_seen_at`. `fetched_at` becomes canonical
+`first_seen_at`; Bronze `last_seen_at` becomes canonical `last_seen_at`.
 
 - [ ] **Step 2: Add console command**
 
@@ -418,7 +421,8 @@ Add a test that:
 - asserts the title reflects the later Bronze version
 - runs `transform_canonical_jobs` again
 - asserts the canonical row count remains one
-- asserts `first_seen_at` stayed stable and `last_seen_at` is populated
+- asserts `first_seen_at` stayed stable and `last_seen_at` reflects the latest Bronze
+  observation timestamp, including unchanged duplicate payload sightings
 
 - [ ] **Step 3: Run integration tests**
 

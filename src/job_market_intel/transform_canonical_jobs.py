@@ -37,7 +37,7 @@ from job_market_intel.silver import (
 class ConnectionLike(Protocol):
     """Minimal connection behavior needed by the canonical transform."""
 
-    def execute(self, sql: str) -> Any:
+    def execute(self, sql: str, params: dict[str, Any] | None = None) -> Any:
         """Execute a SQL statement and return an iterable cursor-like object."""
 
     def commit(self) -> None:
@@ -67,6 +67,7 @@ class RawPayloadRow:
     source_company: str
     source_job_id: str
     fetched_at: datetime
+    last_seen_at: datetime
     payload_json: dict[str, Any]
 
 
@@ -131,25 +132,38 @@ def canonical_record_from_raw_payload(row: RawPayloadRow) -> CanonicalJobRecord:
         salary_max=None,
         currency=None,
         first_seen_at=row.fetched_at,
-        last_seen_at=row.fetched_at,
+        last_seen_at=row.last_seen_at,
         is_active=True,
     )
 
 
-def iter_raw_payload_rows(connection: ConnectionLike) -> Iterable[RawPayloadRow]:
+def iter_raw_payload_rows(
+    connection: ConnectionLike,
+    *,
+    source_company: str | None = None,
+) -> Iterable[RawPayloadRow]:
     """Yield Bronze raw payload rows in deterministic transform order."""
+    where_clause = ""
+    params = None
+    if source_company:
+        where_clause = "WHERE source_company = %(source_company)s"
+        params = {"source_company": source_company}
+
     cursor = connection.execute(
-        """
+        f"""
         SELECT
             raw_payload_id,
             source_name,
             source_company,
             source_job_id,
             fetched_at,
+            last_seen_at,
             payload_json
         FROM raw_job_payloads
+        {where_clause}
         ORDER BY source_name, source_company, source_job_id, fetched_at, raw_payload_id
-        """
+        """,
+        params,
     )
     for row in cursor:
         yield _raw_payload_row_from_database_row(row)
@@ -160,6 +174,7 @@ def transform_canonical_jobs(
     *,
     raw_rows: Iterable[RawPayloadRow] | None = None,
     upsert_job: UpsertCanonicalJob = upsert_canonical_job,
+    source_company: str | None = None,
 ) -> TransformSummary:
     """Transform Bronze raw rows into canonical jobs and upsert them.
 
@@ -169,12 +184,17 @@ def transform_canonical_jobs(
         raw_rows: Optional iterable of raw rows for tests. When omitted, rows
             are read from `raw_job_payloads`.
         upsert_job: Function used to write one canonical job record.
+        source_company: Optional source company filter for scoped transforms.
 
     Returns:
         Summary counts for raw rows read, canonical rows written, and raw rows
         skipped because they could not be safely mapped.
     """
-    rows = raw_rows if raw_rows is not None else iter_raw_payload_rows(connection)
+    rows = (
+        raw_rows
+        if raw_rows is not None
+        else iter_raw_payload_rows(connection, source_company=source_company)
+    )
     raw_rows_read = 0
     canonical_rows_written = 0
     raw_rows_skipped = 0
@@ -245,6 +265,7 @@ def _raw_payload_row_from_database_row(row: Any) -> RawPayloadRow:
             source_company=row["source_company"],
             source_job_id=row["source_job_id"],
             fetched_at=row["fetched_at"],
+            last_seen_at=row["last_seen_at"],
             payload_json=row["payload_json"],
         )
 
@@ -254,7 +275,8 @@ def _raw_payload_row_from_database_row(row: Any) -> RawPayloadRow:
         source_company=row[2],
         source_job_id=row[3],
         fetched_at=row[4],
-        payload_json=row[5],
+        last_seen_at=row[5],
+        payload_json=row[6],
     )
 
 

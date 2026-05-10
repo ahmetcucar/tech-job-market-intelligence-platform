@@ -69,6 +69,7 @@ def insert_raw_job_payload(
             source_company,
             source_job_id,
             fetched_at,
+            last_seen_at,
             payload_hash,
             payload_json
         )
@@ -78,6 +79,7 @@ def insert_raw_job_payload(
             %(source_company)s,
             %(source_job_id)s,
             %(fetched_at)s,
+            %(last_seen_at)s,
             %(payload_hash)s,
             %(payload_json)s
         )
@@ -90,10 +92,30 @@ def insert_raw_job_payload(
             "source_company": source_company,
             "source_job_id": source_job_id,
             "fetched_at": fetched_timestamp,
+            "last_seen_at": fetched_timestamp,
             "payload_hash": payload_hash,
             "payload_json": Jsonb(payload),
         },
     )
+
+    if cursor.rowcount == 0:
+        connection.execute(
+            """
+            UPDATE raw_job_payloads
+            SET last_seen_at = %(last_seen_at)s
+            WHERE source_name = %(source_name)s
+              AND source_company = %(source_company)s
+              AND source_job_id = %(source_job_id)s
+              AND payload_hash = %(payload_hash)s
+            """,
+            {
+                "source_name": source_name,
+                "source_company": source_company,
+                "source_job_id": source_job_id,
+                "payload_hash": payload_hash,
+                "last_seen_at": fetched_timestamp,
+            },
+        )
 
     return RawPayloadInsertResult(
         raw_payload_id=raw_id,

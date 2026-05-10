@@ -30,10 +30,12 @@ class FakeConnection:
     def __init__(self, rows: list[dict[str, Any]]) -> None:
         self.rows = rows
         self.sql: str | None = None
+        self.params: dict[str, Any] | None = None
 
-    def execute(self, sql: str) -> FakeCursor:
+    def execute(self, sql: str, params: dict[str, Any] | None = None) -> FakeCursor:
         """Record the executed statement and return row data."""
         self.sql = sql
+        self.params = params
         return FakeCursor(self.rows)
 
 
@@ -66,6 +68,7 @@ def raw_payload_row(payload: dict[str, Any] | None = None) -> RawPayloadRow:
         source_company="Databricks",
         source_job_id="123",
         fetched_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+        last_seen_at=datetime(2026, 5, 10, 12, 30, tzinfo=UTC),
         payload_json=payload or greenhouse_payload(),
     )
 
@@ -100,7 +103,7 @@ def test_canonical_record_from_raw_payload_maps_greenhouse_fields() -> None:
         salary_max=None,
         currency=None,
         first_seen_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
-        last_seen_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+        last_seen_at=datetime(2026, 5, 10, 12, 30, tzinfo=UTC),
         is_active=True,
     )
 
@@ -127,6 +130,7 @@ def test_iter_raw_payload_rows_reads_bronze_rows_in_deterministic_order() -> Non
                 "source_company": "Databricks",
                 "source_job_id": "123",
                 "fetched_at": datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+                "last_seen_at": datetime(2026, 5, 10, 12, 30, tzinfo=UTC),
                 "payload_json": greenhouse_payload(),
             }
         ]
@@ -142,6 +146,18 @@ def test_iter_raw_payload_rows_reads_bronze_rows_in_deterministic_order() -> Non
     )
 
 
+def test_iter_raw_payload_rows_can_filter_by_source_company() -> None:
+    """The production Bronze reader should support scoped transform verification."""
+    connection = FakeConnection(rows=[])
+
+    rows = list(iter_raw_payload_rows(connection, source_company="Databricks"))
+
+    assert rows == []
+    assert connection.sql is not None
+    assert "WHERE source_company = %(source_company)s" in connection.sql
+    assert connection.params == {"source_company": "Databricks"}
+
+
 def test_transform_canonical_jobs_counts_written_and_skipped_rows() -> None:
     """Transform summary should report read, written, and skipped raw rows."""
     valid_row = raw_payload_row()
@@ -151,6 +167,7 @@ def test_transform_canonical_jobs_counts_written_and_skipped_rows() -> None:
         source_company="Databricks",
         source_job_id="",
         fetched_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+        last_seen_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
         payload_json={"title": "Missing source id"},
     )
     written_records: list[CanonicalJobRecord] = []

@@ -44,9 +44,11 @@ deterministic normalization helpers
 canonical_jobs upsert
 ```
 
-`raw_job_payloads` is append-only version history for observed source payloads. The
-canonical transform reads Bronze rows and writes one current Silver row per source job.
-If a source job appears in multiple Bronze versions, all versions can map to the same
+`raw_job_payloads` stores one row per exact source payload version. The raw
+`payload_json` remains unchanged after insert, while Bronze metadata can record
+`last_seen_at` when the same payload version is observed again. The canonical
+transform reads Bronze rows and writes one current Silver row per source job. If a
+source job appears in multiple Bronze versions, all versions can map to the same
 canonical `job_id`; the latest processed version updates the Silver row.
 
 The first implementation can process all Bronze rows in deterministic order:
@@ -56,8 +58,10 @@ source_name, source_company, source_job_id, fetched_at, raw_payload_id
 ```
 
 For a source job with multiple Bronze versions, this means the most recently fetched
-payload wins. A future optimization can process only raw rows that are new or changed
-since the previous canonical run.
+payload version wins. For an unchanged duplicate payload, Bronze `last_seen_at` lets
+Silver advance `canonical_jobs.last_seen_at` without creating a duplicate raw payload
+version. A future optimization can process only raw rows that are new or changed since
+the previous canonical run.
 
 ## Canonical Job Identity
 
@@ -311,7 +315,7 @@ The tests should prove that:
 - a canonical row is inserted for a source job
 - rerunning with the same source job updates the existing row
 - `first_seen_at` is preserved
-- `last_seen_at` changes to the most recent transform timestamp
+- `last_seen_at` changes to the most recent Bronze observation timestamp
 - only one canonical row exists for the source job
 
 ## Upsert Behavior
