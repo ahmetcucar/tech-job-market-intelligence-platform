@@ -50,6 +50,53 @@ The purpose of Bronze is to make ingestion auditable:
 | payload_json | json | Raw job object from the source |
 | payload_hash | string | Used to detect changes |
 
+### Incremental Ingestion With Hashing
+
+Incremental ingestion means each run should only store or process job payloads that are new or changed.
+
+For each fetched source job, calculate:
+
+```text
+source_name
+source_company
+source_job_id
+payload_hash
+```
+
+The `source_job_id` identifies the job from the source. The `payload_hash` identifies the exact version of that job payload.
+
+The Bronze table should enforce uniqueness on:
+
+```text
+source_name, source_company, source_job_id, payload_hash
+```
+
+This gives the ingestion process a simple rule:
+
+- If the same source job returns the same payload hash, the exact version was already seen.
+- If the same source job returns a different payload hash, the source job changed and a new raw version should be stored.
+
+The insert pattern should be:
+
+```sql
+INSERT INTO raw_job_payloads (...)
+VALUES (...)
+ON CONFLICT (source_name, source_company, source_job_id, payload_hash)
+DO NOTHING;
+```
+
+This lets Postgres handle duplicate detection. The ingestion code can use the insert result to decide whether downstream processing is needed.
+
+Mental model:
+
+```text
+source_job_id identifies the job
+payload_hash identifies the version of the job
+raw_payload_id identifies the stored row for that exact version
+```
+
+Bronze stores raw version history. Silver can then represent the latest normalized state of each job.
+
 ## Silver Layer
 
 Cleaned canonical records. This layer extracts stable, source-independent fields that product screens and downstream transformations can use.
