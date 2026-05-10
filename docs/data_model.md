@@ -84,7 +84,7 @@ The insert pattern should be:
 INSERT INTO raw_job_payloads (...)
 VALUES (...)
 ON CONFLICT (source_name, source_company, source_job_id, payload_hash)
-DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at;
+DO UPDATE SET last_seen_at = GREATEST(raw_job_payloads.last_seen_at, EXCLUDED.last_seen_at);
 ```
 
 This lets Postgres preserve one raw row per exact payload version while still recording the most recent observation time for unchanged postings.

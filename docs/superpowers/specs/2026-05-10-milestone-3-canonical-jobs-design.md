@@ -54,15 +54,15 @@ canonical `job_id`; the latest processed version updates the Silver row.
 The first implementation can process all Bronze rows in deterministic order:
 
 ```text
-source_name, source_company, source_job_id, fetched_at, raw_payload_id
+source_name, source_company, source_job_id, last_seen_at, fetched_at, raw_payload_id
 ```
 
 For a source job with multiple Bronze versions, the implementation should order by
 `last_seen_at`, then `fetched_at`, then `raw_payload_id` within each source job so the
-most recently observed payload version wins. For an unchanged duplicate payload, Bronze `last_seen_at` lets
-Silver advance `canonical_jobs.last_seen_at` without creating a duplicate raw payload
-version. A future optimization can process only raw rows that are new or changed since
-the previous canonical run.
+most recently observed payload version wins. For an unchanged duplicate payload,
+Bronze `last_seen_at` lets Silver advance `canonical_jobs.last_seen_at` without
+creating a duplicate raw payload version. A future optimization can process only raw
+rows that are new or changed since the previous canonical run.
 
 ## Canonical Job Identity
 
