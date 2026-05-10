@@ -43,38 +43,46 @@ Greenhouse public boards
         ↓
 Python ingestion script
         ↓
-Raw payload storage
+Bronze raw payload storage
         ↓
-Normalization step
+Silver canonical job records
         ↓
-Postgres tables
+Rules-based normalization
         ↓
 Rules-based skill extraction
         ↓
 Streamlit search and dashboard UI
 ```
 
-## Milestone 1: Ingest Greenhouse Jobs
+The first data model should follow a simple Bronze/Silver/Gold progression:
 
-Build a Python ingestion script that:
+- **Bronze:** preserve raw Greenhouse job objects for reproducibility.
+- **Silver:** extract stable canonical job fields for search, filtering, and skill extraction.
+- **Gold:** start as dashboard SQL queries; promote to tables or views later if needed.
 
+International and non-English postings should be included by default. The MVP should preserve the original text, store source language when available, and expose uncertainty in normalized fields instead of dropping records.
+
+## Milestone 1: Fetch Greenhouse Jobs
+
+Build the smallest source access layer that:
+
+- reads a configured list of Greenhouse companies
 - fetches public job postings from Greenhouse boards
-- loops through a configured list of companies
-- captures the source company, source job ID, title, location, department, job URL, and raw description
-- records when each posting was fetched
-- stores the raw payload before any transformation
+- returns Greenhouse job objects as Python dictionaries
+- prints a small preview summary for one company
 
 Done when:
 
-- the script can ingest jobs for at least 5 companies
-- raw responses are stored reproducibly
-- repeated runs do not create uncontrolled duplicate records
+- the project can fetch jobs for at least one verified Greenhouse board
+- the project can load the company config and use a board token from it
+- the preview command can print job count, first job title, and first job ID
+- no database writes are required yet
 
-## Milestone 2: Store Raw And Canonical Data
+## Milestone 2: Store Bronze Raw Payloads
 
-Create Postgres tables for raw and normalized job data.
+Build the first persistent ingestion layer.
 
-Initial raw table:
+Create the Bronze table:
 
 ```text
 raw_job_payloads
@@ -87,6 +95,27 @@ raw_job_payloads
 - payload_json
 ```
 
+The raw table stores the full source job object so parsing and normalization can be rerun later.
+
+Incremental ingestion approach:
+
+- compute a stable `payload_hash` for each raw job object
+- insert raw payloads with `ON CONFLICT DO NOTHING`
+- treat same job ID plus same hash as already seen
+- treat same job ID plus different hash as a changed job version
+- use new raw versions as the trigger for later Silver normalization
+
+Done when:
+
+- raw Greenhouse payloads land in `raw_job_payloads`
+- repeated runs do not create duplicate raw payload versions
+- same job ID plus same hash is skipped
+- same job ID plus different hash is stored as a new raw version
+
+## Milestone 3: Build Canonical Jobs
+
+Create the first Silver table for normalized job records. The schema should be based on fields observed in real Greenhouse responses, not guessed in advance.
+
 Initial canonical table:
 
 ```text
@@ -95,27 +124,57 @@ canonical_jobs
 - source_name
 - source_company
 - source_job_id
+- source_internal_job_id
+- requisition_id
 - company_name
 - title
 - normalized_title
-- department
-- location
+- source_language
+- detected_language
+- location_name
+- office_location
+- department_name
 - remote_type
-- description
+- seniority
 - job_url
+- source_published_at
+- source_updated_at
+- description_html
+- description_text
+- salary_min
+- salary_max
+- currency
 - first_seen_at
 - last_seen_at
 - is_active
 ```
 
+The canonical table is the first Silver layer. It extracts fields we clearly understand from the source:
+
+- Greenhouse `id` becomes `source_job_id`
+- Greenhouse `internal_job_id` becomes `source_internal_job_id`
+- Greenhouse `requisition_id` becomes `requisition_id`
+- Greenhouse `company_name` becomes `company_name`
+- Greenhouse `language` becomes `source_language`
+- Greenhouse `location.name` becomes `location_name`
+- Greenhouse `offices[].location` can inform `office_location`
+- Greenhouse `departments[].name` can inform `department_name`
+- Greenhouse `absolute_url` becomes `job_url`
+- Greenhouse `first_published` becomes `source_published_at`
+- Greenhouse `updated_at` becomes `source_updated_at`
+- Greenhouse `content` becomes `description_html`, then cleaned into `description_text`
+
+Fields such as `normalized_title`, `remote_type`, `seniority`, `detected_language`, and salary fields are derived or normalized fields. They can start as `unknown` or `NULL` when the source does not clearly provide them.
+
 Done when:
 
-- raw Greenhouse payloads land in `raw_job_payloads`
 - cleaned job records land in `canonical_jobs`
 - each canonical job has a stable unique ID
 - rerunning ingestion updates `last_seen_at` for existing jobs
+- source-provided timestamps are preserved separately from ingestion timestamps
+- international and non-English postings are retained rather than skipped
 
-## Milestone 3: Normalize Core Fields
+## Milestone 4: Normalize Core Fields
 
 Start with simple deterministic normalization.
 
@@ -137,13 +196,25 @@ Normalize remote status into:
 - onsite
 - unknown
 
+Normalize seniority into:
+
+- intern
+- junior
+- mid
+- senior
+- staff
+- manager
+- unknown
+
 Done when:
 
 - most ingested jobs have a usable `normalized_title`
 - remote/hybrid/onsite status can be filtered in the UI
+- seniority is populated when obvious from the title or description
+- non-English or ambiguous postings can remain `unknown` without being treated as failures
 - unknown values are allowed and visible instead of hidden
 
-## Milestone 4: Add Rules-Based Skill Extraction
+## Milestone 5: Add Rules-Based Skill Extraction
 
 Rules-based skill extraction means maintaining a known list of skills and aliases, then scanning job titles and descriptions for those terms.
 
@@ -190,7 +261,7 @@ Done when:
 - the app can rank top skills across all jobs
 - skill filters can be used in search
 
-## Milestone 5: Build Streamlit MVP UI
+## Milestone 6: Build Streamlit MVP UI
 
 Streamlit should connect directly to Postgres for the first MVP.
 
@@ -243,7 +314,7 @@ Done when:
 - the dashboard exposes at least 3 useful market signals
 - the UI makes data quality issues visible enough to improve the pipeline
 
-## Milestone 6: Add Resume Match Prototype
+## Milestone 7: Add Resume Match Prototype
 
 After job search and skill extraction work, add a simple resume matching workflow.
 

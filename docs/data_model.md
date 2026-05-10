@@ -1,24 +1,42 @@
 # Data Model
 
-The data model should support both analytics and product workflows. It starts with canonical job postings, then builds dimensions, facts, aggregates, and AI-enriched records.
+The data model should support both analytics and product workflows. It starts with raw source payloads, then builds cleaned canonical records, then adds analytics and AI-ready tables.
 
-## Entity Relationship Diagram
+For the MVP, the model should grow in layers:
+
+```text
+Bronze  ->  Silver  ->  Gold
+Raw     ->  Clean   ->  Analytics/Product
+```
+
+The early implementation should favor learning and reproducibility over a perfect final schema. Store raw data first, extract only fields we clearly understand, and promote fields into richer dimensions only after the source patterns are proven across multiple companies.
+
+## MVP Data Layer Diagram
 
 ```mermaid
-erDiagram
-    DIM_COMPANY ||--o{ FACT_JOB_POSTING : posts
-    DIM_LOCATION ||--o{ FACT_JOB_POSTING : located_in
-    DIM_TIME ||--o{ FACT_JOB_POSTING : posted_on
-    FACT_JOB_POSTING ||--o{ BRIDGE_JOB_SKILL : requires
-    DIM_SKILL ||--o{ BRIDGE_JOB_SKILL : appears_in
-    FACT_JOB_POSTING ||--o{ JOB_EMBEDDING : embedded_as
-    FACT_JOB_POSTING ||--o{ RESUME_JOB_MATCH : matched_against
-    USER_RESUME ||--o{ RESUME_JOB_MATCH : produces
+flowchart LR
+    greenhouse["Greenhouse API"] --> raw["raw_job_payloads<br/>Bronze"]
+    raw --> canonical["canonical_jobs<br/>Silver"]
+    canonical --> jobSkills["job_skills<br/>Silver enrichment"]
+    skills["skills<br/>Skill taxonomy"] --> jobSkills
+    canonical --> dashboard["Streamlit dashboard queries<br/>Gold for MVP"]
+    jobSkills --> dashboard
+    canonical --> futureAi["Future AI tables<br/>embeddings and resume matches"]
+    jobSkills --> futureAi
 ```
+
+The MVP starts with a simple layered model instead of a fully normalized warehouse. Future dimensions and fact tables can be introduced after the source patterns are clearer.
 
 ## Bronze Layer
 
-Raw source data used for reproducibility and debugging.
+Raw source data used for reproducibility and debugging. This layer should preserve the full source response with minimal interpretation.
+
+The purpose of Bronze is to make ingestion auditable:
+
+- What source did this record come from?
+- What did the source return at fetch time?
+- Did the payload change across runs?
+- Can we reprocess old payloads after improving parsing logic?
 
 ### raw_job_payloads
 
@@ -26,14 +44,64 @@ Raw source data used for reproducibility and debugging.
 | --- | --- | --- |
 | raw_payload_id | string | Unique raw record ID |
 | source_name | string | Source system, such as Greenhouse or Lever |
+| source_company | string | Source-specific company or board token, such as a Greenhouse board token |
 | source_job_id | string | Job ID from the source |
 | fetched_at | timestamp | Time the source was fetched |
-| payload | json | Raw response body |
+| payload_json | json | Raw job object from the source |
 | payload_hash | string | Used to detect changes |
+
+### Incremental Ingestion With Hashing
+
+Incremental ingestion means each run should only store or process job payloads that are new or changed.
+
+For each fetched source job, calculate:
+
+```text
+source_name
+source_company
+source_job_id
+payload_hash
+```
+
+The `source_job_id` identifies the job from the source. The `payload_hash` identifies the exact version of that job payload.
+
+The Bronze table should enforce uniqueness on:
+
+```text
+source_name, source_company, source_job_id, payload_hash
+```
+
+This gives the ingestion process a simple rule:
+
+- If the same source job returns the same payload hash, the exact version was already seen.
+- If the same source job returns a different payload hash, the source job changed and a new raw version should be stored.
+
+The insert pattern should be:
+
+```sql
+INSERT INTO raw_job_payloads (...)
+VALUES (...)
+ON CONFLICT (source_name, source_company, source_job_id, payload_hash)
+DO NOTHING;
+```
+
+This lets Postgres handle duplicate detection. The ingestion code can use the insert result to decide whether downstream processing is needed.
+
+Mental model:
+
+```text
+source_job_id identifies the job
+payload_hash identifies the version of the job
+raw_payload_id identifies the stored row for that exact version
+```
+
+Bronze stores raw version history. Silver can then represent the latest normalized state of each job.
 
 ## Silver Layer
 
-Cleaned canonical records.
+Cleaned canonical records. This layer extracts stable, source-independent fields that product screens and downstream transformations can use.
+
+For the first Greenhouse-based MVP, `canonical_jobs` should stay close to the source object. More normalized dimensions such as companies, locations, and time can come later after we see enough source variation.
 
 ### canonical_jobs
 
@@ -41,21 +109,48 @@ Cleaned canonical records.
 | --- | --- | --- |
 | job_id | string | Internal job ID |
 | source_name | string | Source system |
+| source_company | string | Source-specific company or board token |
 | source_job_id | string | Source job ID |
-| company_id | string | Foreign key to company |
+| source_internal_job_id | string | Optional source internal job ID when available |
+| requisition_id | string | Company or source requisition identifier when available |
+| company_name | string | Company name from the source or source config |
 | title | string | Original job title |
 | normalized_title | string | Standardized role name |
-| description | text | Cleaned job description |
-| location_id | string | Foreign key to location |
+| source_language | string | Source-provided language code when available |
+| detected_language | string | Optional future detected language when source language is unreliable |
+| location_name | string | Source-provided broad location, such as `Japan` |
+| office_location | string | More specific office location when available, such as `Tokyo, Japan` |
+| department_name | string | First extracted department name for the MVP |
 | remote_type | string | remote, hybrid, onsite, unknown |
 | seniority | string | intern, junior, mid, senior, staff, manager, unknown |
+| job_url | string | Public job posting URL |
+| source_published_at | timestamp | Source-provided publish timestamp, such as Greenhouse `first_published` |
+| source_updated_at | timestamp | Source-provided update timestamp, such as Greenhouse `updated_at` |
+| description_html | text | Source job description as HTML or HTML-escaped content |
+| description_text | text | Cleaned plain-text job description |
 | salary_min | numeric | Normalized annual salary when available |
 | salary_max | numeric | Normalized annual salary when available |
 | currency | string | Currency code |
-| posted_at | timestamp | Source posting date |
 | first_seen_at | timestamp | First ingestion time |
 | last_seen_at | timestamp | Most recent ingestion time |
 | is_active | boolean | Whether the posting still appears active |
+
+### MVP Canonical Design Notes
+
+The first canonical table intentionally keeps some fields denormalized:
+
+- `company_name` stays directly on `canonical_jobs` before creating a company dimension.
+- `location_name` and `office_location` stay directly on `canonical_jobs` before creating a location dimension.
+- `department_name` stores the first department for v0, even though source departments can be arrays.
+- `description_html` and `description_text` are both useful because the raw source content is HTML-like, while search and skill extraction need plain text.
+- International and non-English postings should stay in the dataset. Store `source_language` when available and let derived fields remain `unknown` when English-oriented rules are not reliable.
+- `detected_language` is optional for a later iteration. The MVP should not depend on language detection to preserve or query postings.
+
+This keeps the first implementation understandable while preserving a path toward more normalized tables later.
+
+## Future Silver Dimensions
+
+After the MVP proves the ingestion and exploration loop, these dimensions can be introduced to reduce duplication and support richer analysis.
 
 ### companies
 
@@ -101,6 +196,8 @@ Cleaned canonical records.
 
 Analytics-ready tables and aggregates.
 
+For the MVP, Gold does not need to start as physical tables. Streamlit can run SQL queries against Silver tables first. If the same queries become important or expensive, promote them into views or materialized tables.
+
 ### fact_job_postings
 
 One row per canonical job posting per observed status period.
@@ -143,6 +240,18 @@ Measures:
 - Growth rate
 - Top roles
 - Top skills
+
+### Additional MVP Analytics Candidates
+
+Useful early dashboard queries:
+
+- Jobs by company
+- Jobs by normalized role
+- Top extracted skills
+- Remote vs hybrid vs onsite mix
+- Jobs by source language
+- Job counts by source publish date
+- Job counts by department
 
 ## AI Tables
 
