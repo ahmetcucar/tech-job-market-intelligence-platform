@@ -276,7 +276,7 @@ Create:
 - `CanonicalJobUpsertResult`
 - `upsert_canonical_job(connection, record)`
 
-Use a single `INSERT ... ON CONFLICT ... DO UPDATE` statement. Preserve `first_seen_at` by not updating it in the conflict clause. Update `last_seen_at` and all source-derived fields.
+Use a single `INSERT ... ON CONFLICT ... DO UPDATE` statement. Preserve the earliest known `first_seen_at` with `LEAST(...)`. Update `last_seen_at` and all source-derived fields from the latest observed raw version.
 
 - [ ] **Step 2: Run focused tests**
 
@@ -352,7 +352,7 @@ Create:
 Read Bronze rows ordered by:
 
 ```sql
-source_name, source_company, source_job_id, fetched_at, raw_payload_id
+source_name, source_company, source_job_id, last_seen_at, fetched_at, raw_payload_id
 ```
 
 Select both `fetched_at` and `last_seen_at`. `fetched_at` becomes canonical
