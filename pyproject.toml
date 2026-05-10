@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 ingest-greenhouse = "job_market_intel.ingest_greenhouse:main"
+transform-canonical-jobs = "job_market_intel.transform_canonical_jobs:main"
 
 [project.optional-dependencies]
 dev = [
