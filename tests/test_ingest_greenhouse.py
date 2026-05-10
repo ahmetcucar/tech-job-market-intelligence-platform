@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from job_market_intel.ingest_greenhouse import ingest_greenhouse_companies
+from pathlib import Path
+
+import pytest
+
+from job_market_intel.ingest_greenhouse import ingest_greenhouse_companies, parse_args
 
 
 @dataclass(frozen=True)
@@ -19,10 +23,15 @@ class FakeConnection:
 
     def __init__(self) -> None:
         self.commits = 0
+        self.rollbacks = 0
 
     def commit(self) -> None:
         """Record one transaction commit."""
         self.commits += 1
+
+    def rollback(self) -> None:
+        """Record one transaction rollback."""
+        self.rollbacks += 1
 
 
 def test_ingest_greenhouse_companies_processes_all_configured_companies() -> None:
@@ -161,3 +170,54 @@ def test_ingest_greenhouse_companies_uses_one_fetched_at_per_company_batch() -> 
 
     assert len(fetched_at_values) == 2
     assert fetched_at_values[0] == fetched_at_values[1]
+
+
+def test_ingest_greenhouse_companies_rolls_back_failed_company_batch() -> None:
+    """A failed company batch should be rolled back by the ingestion boundary."""
+    companies = [
+        {"name": "Databricks", "board_token": "databricks"},
+        {"name": "Cloudflare", "board_token": "cloudflare"},
+    ]
+    connection = FakeConnection()
+
+    def fetch_jobs(board_token: str) -> list[dict[str, Any]]:
+        return [{"id": board_token, "title": "Data Engineer"}]
+
+    def insert_job(
+        connection: object,
+        *,
+        source_name: str,
+        source_company: str,
+        source_job_id: str,
+        payload: dict[str, Any],
+        fetched_at: datetime,
+    ) -> FakeInsertResult:
+        if source_company == "Cloudflare":
+            raise RuntimeError("simulated insert failure")
+        return FakeInsertResult(inserted=True)
+
+    with pytest.raises(RuntimeError, match="simulated insert failure"):
+        ingest_greenhouse_companies(
+            connection=connection,
+            companies=companies,
+            fetch_jobs=fetch_jobs,
+            insert_job=insert_job,
+        )
+
+    assert connection.commits == 1
+    assert connection.rollbacks == 1
+
+
+def test_parse_args_accepts_config_and_database_url() -> None:
+    """CLI argument parsing should be directly testable without patching sys.argv."""
+    args = parse_args(
+        [
+            "--config",
+            "config/greenhouse_companies.yml",
+            "--database-url",
+            "postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket",
+        ]
+    )
+
+    assert args.config == Path("config/greenhouse_companies.yml")
+    assert args.database_url == "postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket"

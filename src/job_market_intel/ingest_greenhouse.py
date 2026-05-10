@@ -42,6 +42,9 @@ class CommitConnection(Protocol):
     def commit(self) -> None:
         """Commit the current transaction."""
 
+    def rollback(self) -> None:
+        """Roll back the current transaction."""
+
 
 @dataclass(frozen=True)
 class IngestSummary:
@@ -78,27 +81,31 @@ def ingest_greenhouse_companies(
     payloads_skipped = 0
 
     for company in companies:
-        company_name = company["name"]
-        board_token = company["board_token"]
-        jobs = fetch_jobs(board_token)
-        fetched_at = datetime.now(UTC)
-        jobs_fetched += len(jobs)
+        try:
+            company_name = company["name"]
+            board_token = company["board_token"]
+            jobs = fetch_jobs(board_token)
+            fetched_at = datetime.now(UTC)
+            jobs_fetched += len(jobs)
 
-        for job in jobs:
-            result = insert_job(
-                connection,
-                source_name="greenhouse",
-                source_company=company_name,
-                source_job_id=str(job["id"]),
-                payload=job,
-                fetched_at=fetched_at,
-            )
-            if result.inserted:
-                payloads_inserted += 1
-            else:
-                payloads_skipped += 1
+            for job in jobs:
+                result = insert_job(
+                    connection,
+                    source_name="greenhouse",
+                    source_company=company_name,
+                    source_job_id=str(job["id"]),
+                    payload=job,
+                    fetched_at=fetched_at,
+                )
+                if result.inserted:
+                    payloads_inserted += 1
+                else:
+                    payloads_skipped += 1
 
-        connection.commit()
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
 
     return IngestSummary(
         companies_processed=len(companies),
@@ -108,7 +115,7 @@ def ingest_greenhouse_companies(
     )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line options for Greenhouse Bronze ingestion."""
     parser = argparse.ArgumentParser(
         description="Store raw Greenhouse job payloads for configured companies.",
@@ -124,7 +131,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Postgres connection URL. Defaults to DATABASE_URL or the local Docker database.",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> None:

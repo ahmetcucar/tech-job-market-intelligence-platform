@@ -103,6 +103,16 @@ Use a custom config path or database URL when needed:
 ingest-greenhouse --config config/greenhouse_companies.yml --database-url postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket
 ```
 
+Run Postgres-backed integration tests only against an explicit test database URL:
+
+```bash
+JOB_MARKET_TEST_DATABASE_URL=postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket pytest tests/test_postgres_integration.py -v
+```
+
+These tests create the Bronze table if needed and write temporary rows with generated company names. Do not point `JOB_MARKET_TEST_DATABASE_URL` at a shared or production database.
+
+If you ingested local Bronze data before this milestone was finalized, reset the local Docker volume and reingest so `raw_payload_id` values use the current canonical JSON identity format.
+
 ## Target Stack
 
 - **Ingestion:** Python, scheduled jobs, source-specific connectors

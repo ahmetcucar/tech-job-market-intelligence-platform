@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from os import environ
+from pathlib import Path
 from uuid import uuid4
 
 import psycopg
@@ -13,31 +15,26 @@ from job_market_intel.ingest_greenhouse import ingest_greenhouse_companies
 from job_market_intel.raw_payloads import insert_raw_job_payload
 
 
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS raw_job_payloads (
-    raw_payload_id TEXT PRIMARY KEY,
-    source_name TEXT NOT NULL,
-    source_company TEXT NOT NULL,
-    source_job_id TEXT NOT NULL,
-    fetched_at TIMESTAMPTZ NOT NULL,
-    payload_hash TEXT NOT NULL,
-    payload_json JSONB NOT NULL,
-    UNIQUE (source_name, source_company, source_job_id, payload_hash)
-);
-"""
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+INIT_SQL = PROJECT_ROOT / "sql" / "001_init.sql"
+TEST_DATABASE_ENV_VAR = "JOB_MARKET_TEST_DATABASE_URL"
 
 
 def open_test_connection() -> psycopg.Connection:
-    """Open a test database connection or skip when local Postgres is unavailable."""
+    """Open an explicit test database connection or skip when it is unavailable."""
+    test_database_url = environ.get(TEST_DATABASE_ENV_VAR)
+    if not test_database_url:
+        pytest.skip(f"{TEST_DATABASE_ENV_VAR} is not set")
+
     try:
-        return connect()
+        return connect(test_database_url)
     except psycopg.OperationalError as exc:
         pytest.skip(f"Postgres integration database is unavailable: {exc}")
 
 
 def ensure_schema(connection: psycopg.Connection) -> None:
-    """Ensure the Bronze table exists for integration tests."""
-    connection.execute(SCHEMA_SQL)
+    """Ensure the Bronze table exists using the checked-in SQL init file."""
+    connection.execute(INIT_SQL.read_text(encoding="utf-8"))
     connection.commit()
 
 
