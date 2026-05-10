@@ -69,6 +69,8 @@ For the first Greenhouse-based MVP, `canonical_jobs` should stay close to the so
 | company_name | string | Company name from the source or source config |
 | title | string | Original job title |
 | normalized_title | string | Standardized role name |
+| source_language | string | Source-provided language code when available |
+| detected_language | string | Optional future detected language when source language is unreliable |
 | location_name | string | Source-provided broad location, such as `Japan` |
 | office_location | string | More specific office location when available, such as `Tokyo, Japan` |
 | department_name | string | First extracted department name for the MVP |
@@ -94,6 +96,8 @@ The first canonical table intentionally keeps some fields denormalized:
 - `location_name` and `office_location` stay directly on `canonical_jobs` before creating a location dimension.
 - `department_name` stores the first department for v0, even though source departments can be arrays.
 - `description_html` and `description_text` are both useful because the raw source content is HTML-like, while search and skill extraction need plain text.
+- International and non-English postings should stay in the dataset. Store `source_language` when available and let derived fields remain `unknown` when English-oriented rules are not reliable.
+- `detected_language` is optional for a later iteration. The MVP should not depend on language detection to preserve or query postings.
 
 This keeps the first implementation understandable while preserving a path toward more normalized tables later.
 
@@ -198,6 +202,7 @@ Useful early dashboard queries:
 - Jobs by normalized role
 - Top extracted skills
 - Remote vs hybrid vs onsite mix
+- Jobs by source language
 - Job counts by source publish date
 - Job counts by department
 

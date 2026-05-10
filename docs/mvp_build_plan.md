@@ -60,6 +60,8 @@ The first data model should follow a simple Bronze/Silver/Gold progression:
 - **Silver:** extract stable canonical job fields for search, filtering, and skill extraction.
 - **Gold:** start as dashboard SQL queries; promote to tables or views later if needed.
 
+International and non-English postings should be included by default. The MVP should preserve the original text, store source language when available, and expose uncertainty in normalized fields instead of dropping records.
+
 ## Milestone 1: Ingest Greenhouse Jobs
 
 Build a Python ingestion script that:
@@ -108,6 +110,8 @@ canonical_jobs
 - company_name
 - title
 - normalized_title
+- source_language
+- detected_language
 - location_name
 - office_location
 - department_name
@@ -132,6 +136,7 @@ The canonical table is the first Silver layer. It extracts fields we clearly und
 - Greenhouse `internal_job_id` becomes `source_internal_job_id`
 - Greenhouse `requisition_id` becomes `requisition_id`
 - Greenhouse `company_name` becomes `company_name`
+- Greenhouse `language` becomes `source_language`
 - Greenhouse `location.name` becomes `location_name`
 - Greenhouse `offices[].location` can inform `office_location`
 - Greenhouse `departments[].name` can inform `department_name`
@@ -140,7 +145,7 @@ The canonical table is the first Silver layer. It extracts fields we clearly und
 - Greenhouse `updated_at` becomes `source_updated_at`
 - Greenhouse `content` becomes `description_html`, then cleaned into `description_text`
 
-Fields such as `normalized_title`, `remote_type`, `seniority`, and salary fields are derived or normalized fields. They can start as `unknown` or `NULL` when the source does not clearly provide them.
+Fields such as `normalized_title`, `remote_type`, `seniority`, `detected_language`, and salary fields are derived or normalized fields. They can start as `unknown` or `NULL` when the source does not clearly provide them.
 
 Done when:
 
@@ -149,6 +154,7 @@ Done when:
 - each canonical job has a stable unique ID
 - rerunning ingestion updates `last_seen_at` for existing jobs
 - source-provided timestamps are preserved separately from ingestion timestamps
+- international and non-English postings are retained rather than skipped
 
 ## Milestone 3: Normalize Core Fields
 
@@ -187,6 +193,7 @@ Done when:
 - most ingested jobs have a usable `normalized_title`
 - remote/hybrid/onsite status can be filtered in the UI
 - seniority is populated when obvious from the title or description
+- non-English or ambiguous postings can remain `unknown` without being treated as failures
 - unknown values are allowed and visible instead of hidden
 
 ## Milestone 4: Add Rules-Based Skill Extraction

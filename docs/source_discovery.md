@@ -29,6 +29,7 @@ From an observed Databricks Greenhouse posting, useful fields include:
 - `absolute_url`
 - `updated_at`
 - `first_published`
+- `language`
 - `content`
 - `metadata`
 
@@ -46,7 +47,9 @@ From an observed Databricks Greenhouse posting, useful fields include:
 - `absolute_url` is the public job posting URL.
 - `updated_at` is the source-provided update timestamp.
 - `first_published` is the source-provided publish timestamp.
+- `language` is source-provided, but may not fully describe the actual language of the title or description.
 - `content` contains HTML-escaped job description content.
+- Some postings may contain non-English titles or descriptions. One observed Databricks posting had a Japanese title while the source `language` field was `en`.
 
 ### Schema Implications
 
@@ -63,8 +66,26 @@ The first canonical job table should only extract fields we clearly understand:
 - job URL
 - source update timestamp
 - source publish timestamp
+- source language
 - description HTML
 - description text
+
+### International And Non-English Postings
+
+The project should include international and non-English postings instead of dropping them during ingestion.
+
+Rationale:
+
+- Bronze data should preserve what the source returned.
+- International postings are part of the real labor market.
+- Filtering should happen in product/query layers, not destructively during ingestion.
+
+MVP handling:
+
+- Keep the original title and description text.
+- Store the source-provided language field as `source_language`.
+- Allow normalized fields such as role, seniority, skills, and remote type to remain `unknown` when rules are not reliable.
+- Add detected language later only if the source-provided language proves insufficient.
 
 ### Open Questions
 
@@ -73,3 +94,4 @@ The first canonical job table should only extract fields we clearly understand:
 - Which metadata fields are consistent enough across companies to promote into canonical fields?
 - How often do Greenhouse postings include salary information?
 - How should non-English descriptions affect title normalization and skill extraction?
+- Should the dashboard default to all postings, US/English postings, or expose this as a user-controlled filter?
