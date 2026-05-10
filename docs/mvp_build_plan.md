@@ -91,17 +91,18 @@ raw_job_payloads
 - source_company
 - source_job_id
 - fetched_at
+- last_seen_at
 - payload_hash
 - payload_json
 ```
 
-The raw table stores the full source job object so parsing and normalization can be rerun later.
+The raw table stores the full source job object so parsing and normalization can be rerun later. `fetched_at` records when a payload version was first stored; `last_seen_at` records when that same payload version was most recently observed.
 
 Incremental ingestion approach:
 
 - compute a stable `payload_hash` for each raw job object
 - insert raw payloads with `ON CONFLICT DO NOTHING`
-- treat same job ID plus same hash as already seen
+- treat same job ID plus same hash as already seen, and update `last_seen_at`
 - treat same job ID plus different hash as a changed job version
 - use new raw versions as the trigger for later Silver normalization
 

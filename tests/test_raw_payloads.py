@@ -17,23 +17,21 @@ class FakeCursor:
 class FakeConnection:
     """Small connection test double that records the SQL and parameters."""
 
-    def __init__(self, rowcount: int) -> None:
-        self.rowcount = rowcount
-        self.sql: str | None = None
-        self.params: dict[str, Any] | None = None
+    def __init__(self, rowcounts: int | list[int]) -> None:
+        self.rowcounts = rowcounts if isinstance(rowcounts, list) else [rowcounts]
+        self.statements: list[tuple[str, dict[str, Any]]] = []
 
     def execute(self, sql: str, params: dict[str, Any]) -> FakeCursor:
         """Record the executed statement and return a cursor-like object."""
-        self.sql = sql
-        self.params = params
-        return FakeCursor(self.rowcount)
+        self.statements.append((sql, params))
+        return FakeCursor(self.rowcounts[len(self.statements) - 1])
 
 
 def test_insert_raw_job_payload_builds_identity_and_insert_statement() -> None:
     """A new raw payload should be inserted with deterministic Bronze identity fields."""
     payload = {"id": 123, "title": "Data Engineer"}
     fetched_at = datetime(2026, 5, 10, 12, 0, tzinfo=UTC)
-    connection = FakeConnection(rowcount=1)
+    connection = FakeConnection(rowcounts=1)
 
     result = insert_raw_job_payload(
         connection,
@@ -48,19 +46,21 @@ def test_insert_raw_job_payload_builds_identity_and_insert_statement() -> None:
     assert result.inserted is True
     assert result.payload_hash == expected_hash
     assert result.raw_payload_id == raw_payload_id("greenhouse", "Databricks", "123", expected_hash)
-    assert connection.sql is not None
-    assert "ON CONFLICT (source_name, source_company, source_job_id, payload_hash)" in connection.sql
-    assert "DO NOTHING" in connection.sql
-    assert connection.params is not None
-    assert connection.params["source_name"] == "greenhouse"
-    assert connection.params["source_company"] == "Databricks"
-    assert connection.params["source_job_id"] == "123"
-    assert connection.params["fetched_at"] == fetched_at
+    assert len(connection.statements) == 1
+    insert_sql, insert_params = connection.statements[0]
+    assert "ON CONFLICT (source_name, source_company, source_job_id, payload_hash)" in insert_sql
+    assert "DO NOTHING" in insert_sql
+    assert insert_params["source_name"] == "greenhouse"
+    assert insert_params["source_company"] == "Databricks"
+    assert insert_params["source_job_id"] == "123"
+    assert insert_params["fetched_at"] == fetched_at
+    assert insert_params["last_seen_at"] == fetched_at
 
 
-def test_insert_raw_job_payload_reports_skipped_duplicate() -> None:
-    """A duplicate raw payload version should report inserted=False."""
-    connection = FakeConnection(rowcount=0)
+def test_insert_raw_job_payload_updates_last_seen_for_skipped_duplicate() -> None:
+    """A duplicate raw payload version should advance last_seen_at metadata."""
+    fetched_at = datetime(2026, 5, 10, 13, 0, tzinfo=UTC)
+    connection = FakeConnection(rowcounts=[0, 1])
 
     result = insert_raw_job_payload(
         connection,
@@ -68,7 +68,12 @@ def test_insert_raw_job_payload_reports_skipped_duplicate() -> None:
         source_company="Databricks",
         source_job_id="123",
         payload={"id": 123},
-        fetched_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+        fetched_at=fetched_at,
     )
 
     assert result.inserted is False
+    assert len(connection.statements) == 2
+    update_sql, update_params = connection.statements[1]
+    assert "UPDATE raw_job_payloads" in update_sql
+    assert "last_seen_at = GREATEST(last_seen_at, %(last_seen_at)s)" in update_sql
+    assert update_params["last_seen_at"] == fetched_at

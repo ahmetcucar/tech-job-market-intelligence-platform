@@ -1,0 +1,40 @@
+ALTER TABLE raw_job_payloads
+ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+
+UPDATE raw_job_payloads
+SET last_seen_at = fetched_at
+WHERE last_seen_at IS NULL;
+
+ALTER TABLE raw_job_payloads
+ALTER COLUMN last_seen_at SET NOT NULL;
+
+CREATE TABLE IF NOT EXISTS canonical_jobs (
+    job_id TEXT PRIMARY KEY,
+    source_name TEXT NOT NULL,
+    source_company TEXT NOT NULL,
+    source_job_id TEXT NOT NULL,
+    source_internal_job_id TEXT,
+    requisition_id TEXT,
+    company_name TEXT,
+    title TEXT,
+    normalized_title TEXT NOT NULL,
+    source_language TEXT,
+    detected_language TEXT,
+    location_name TEXT,
+    office_location TEXT,
+    department_name TEXT,
+    remote_type TEXT NOT NULL,
+    seniority TEXT NOT NULL,
+    job_url TEXT,
+    source_published_at TIMESTAMPTZ,
+    source_updated_at TIMESTAMPTZ,
+    description_html TEXT,
+    description_text TEXT,
+    salary_min NUMERIC,
+    salary_max NUMERIC,
+    currency TEXT,
+    first_seen_at TIMESTAMPTZ NOT NULL,
+    last_seen_at TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE (source_name, source_company, source_job_id)
+);
