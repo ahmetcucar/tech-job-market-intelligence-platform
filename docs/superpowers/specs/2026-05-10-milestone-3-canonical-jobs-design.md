@@ -57,8 +57,9 @@ The first implementation can process all Bronze rows in deterministic order:
 source_name, source_company, source_job_id, fetched_at, raw_payload_id
 ```
 
-For a source job with multiple Bronze versions, this means the most recently fetched
-payload version wins. For an unchanged duplicate payload, Bronze `last_seen_at` lets
+For a source job with multiple Bronze versions, the implementation should order by
+`last_seen_at`, then `fetched_at`, then `raw_payload_id` within each source job so the
+most recently observed payload version wins. For an unchanged duplicate payload, Bronze `last_seen_at` lets
 Silver advance `canonical_jobs.last_seen_at` without creating a duplicate raw payload
 version. A future optimization can process only raw rows that are new or changed since
 the previous canonical run.
@@ -278,7 +279,7 @@ This module should own the `INSERT ... ON CONFLICT ... DO UPDATE` statement for
 `canonical_jobs`. It should accept a canonical job record object or explicit fields
 and return whether a row was inserted or updated when that can be determined cleanly.
 
-Upserts should preserve `first_seen_at` and update `last_seen_at`.
+Upserts should preserve the earliest known `first_seen_at` and update `last_seen_at`.
 
 ### `src/job_market_intel/transform_canonical_jobs.py`
 

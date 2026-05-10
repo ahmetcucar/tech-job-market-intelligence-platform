@@ -356,7 +356,10 @@ source_name, source_company, source_job_id, fetched_at, raw_payload_id
 ```
 
 Select both `fetched_at` and `last_seen_at`. `fetched_at` becomes canonical
-`first_seen_at`; Bronze `last_seen_at` becomes canonical `last_seen_at`.
+`first_seen_at`; Bronze `last_seen_at` becomes canonical `last_seen_at`. Order raw
+versions by `last_seen_at`, then `fetched_at`, then `raw_payload_id` within each
+source job so a re-observed older payload version can become the current canonical
+state.
 
 - [ ] **Step 2: Add console command**
 
@@ -423,6 +426,8 @@ Add a test that:
 - asserts the canonical row count remains one
 - asserts `first_seen_at` stayed stable and `last_seen_at` reflects the latest Bronze
   observation timestamp, including unchanged duplicate payload sightings
+- asserts a re-observed older payload version wins over a newer-but-less-recently-seen
+  payload version
 
 - [ ] **Step 3: Run integration tests**
 

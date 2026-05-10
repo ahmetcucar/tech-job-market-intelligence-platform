@@ -67,7 +67,7 @@ def canonical_record() -> CanonicalJobRecord:
 
 
 def test_upsert_canonical_job_builds_conflict_update_statement() -> None:
-    """Canonical jobs should upsert by source identity while preserving first_seen_at."""
+    """Canonical jobs should upsert by source identity while preserving earliest first_seen_at."""
     connection = FakeConnection(rowcount=1)
 
     result = upsert_canonical_job(connection, canonical_record())
@@ -77,7 +77,7 @@ def test_upsert_canonical_job_builds_conflict_update_statement() -> None:
     assert "ON CONFLICT (source_name, source_company, source_job_id)" in connection.sql
     assert "DO UPDATE SET" in connection.sql
     update_clause = connection.sql.split("DO UPDATE SET", maxsplit=1)[1]
-    assert "first_seen_at" not in update_clause
+    assert "first_seen_at = LEAST(canonical_jobs.first_seen_at, EXCLUDED.first_seen_at)" in update_clause
     assert "last_seen_at = EXCLUDED.last_seen_at" in update_clause
 
 

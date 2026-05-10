@@ -75,5 +75,5 @@ def test_insert_raw_job_payload_updates_last_seen_for_skipped_duplicate() -> Non
     assert len(connection.statements) == 2
     update_sql, update_params = connection.statements[1]
     assert "UPDATE raw_job_payloads" in update_sql
-    assert "last_seen_at = %(last_seen_at)s" in update_sql
+    assert "last_seen_at = GREATEST(last_seen_at, %(last_seen_at)s)" in update_sql
     assert update_params["last_seen_at"] == fetched_at

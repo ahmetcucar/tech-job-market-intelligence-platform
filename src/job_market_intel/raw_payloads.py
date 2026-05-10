@@ -102,7 +102,7 @@ def insert_raw_job_payload(
         connection.execute(
             """
             UPDATE raw_job_payloads
-            SET last_seen_at = %(last_seen_at)s
+            SET last_seen_at = GREATEST(last_seen_at, %(last_seen_at)s)
             WHERE source_name = %(source_name)s
               AND source_company = %(source_company)s
               AND source_job_id = %(source_job_id)s

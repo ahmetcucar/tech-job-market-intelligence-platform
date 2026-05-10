@@ -98,7 +98,7 @@ raw_payload_id identifies the stored row for that exact version
 last_seen_at identifies when that exact version was most recently observed
 ```
 
-Bronze stores raw version history. Silver can then represent the latest normalized state of each job.
+Bronze stores raw version history and observation metadata. Silver can then represent the latest normalized state of each job by choosing the raw payload version with the most recent `last_seen_at`.
 
 ## Silver Layer
 

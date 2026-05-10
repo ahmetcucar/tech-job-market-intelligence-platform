@@ -289,3 +289,69 @@ def test_transform_canonical_jobs_uses_duplicate_payload_last_seen_at() -> None:
         )
 
         cleanup_company(connection, source_company)
+
+
+def test_transform_canonical_jobs_uses_latest_observed_payload_version() -> None:
+    """Canonical current state should follow the raw version seen most recently."""
+    source_company = f"IntegrationCanonicalReobserved-{uuid4()}"
+    first_payload = {
+        "id": "integration-job-1",
+        "title": "Backend Engineer",
+        "company_name": source_company,
+        "location": {"name": "Remote - US"},
+        "content": "<p>Build APIs.</p>",
+    }
+    changed_payload = {
+        "id": "integration-job-1",
+        "title": "Senior Backend Engineer",
+        "company_name": source_company,
+        "location": {"name": "Remote - US"},
+        "content": "<p>Build APIs and mentor engineers.</p>",
+    }
+
+    with open_test_connection() as connection:
+        ensure_schema(connection)
+        cleanup_company(connection, source_company)
+
+        insert_raw_job_payload(
+            connection,
+            source_name="greenhouse",
+            source_company=source_company,
+            source_job_id="integration-job-1",
+            payload=first_payload,
+            fetched_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+        )
+        insert_raw_job_payload(
+            connection,
+            source_name="greenhouse",
+            source_company=source_company,
+            source_job_id="integration-job-1",
+            payload=changed_payload,
+            fetched_at=datetime(2026, 5, 10, 13, 0, tzinfo=UTC),
+        )
+        insert_raw_job_payload(
+            connection,
+            source_name="greenhouse",
+            source_company=source_company,
+            source_job_id="integration-job-1",
+            payload=first_payload,
+            fetched_at=datetime(2026, 5, 10, 14, 0, tzinfo=UTC),
+        )
+        connection.commit()
+
+        summary = transform_canonical_jobs(connection, source_company=source_company)
+        connection.commit()
+        row = canonical_company_row(connection, source_company)
+
+        assert count_company_rows(connection, source_company) == 2
+        assert summary.raw_rows_read == 2
+        assert summary.canonical_rows_written == 2
+        assert summary.raw_rows_skipped == 0
+        assert row == (
+            1,
+            datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+            datetime(2026, 5, 10, 14, 0, tzinfo=UTC),
+            "Backend Engineer",
+        )
+
+        cleanup_company(connection, source_company)

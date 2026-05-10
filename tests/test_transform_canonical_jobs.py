@@ -141,7 +141,7 @@ def test_iter_raw_payload_rows_reads_bronze_rows_in_deterministic_order() -> Non
     assert rows == [raw_payload_row()]
     assert connection.sql is not None
     assert "FROM raw_job_payloads" in connection.sql
-    assert "ORDER BY source_name, source_company, source_job_id, fetched_at, raw_payload_id" in (
+    assert "ORDER BY source_name, source_company, source_job_id, last_seen_at, fetched_at, raw_payload_id" in (
         connection.sql
     )
 

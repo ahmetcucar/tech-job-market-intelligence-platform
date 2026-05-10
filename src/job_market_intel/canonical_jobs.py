@@ -75,8 +75,8 @@ def upsert_canonical_job(
         Upsert metadata with the canonical job ID and whether Postgres reported
         that a row was written.
 
-    Existing rows keep their original `first_seen_at`; all source-derived fields
-    and `last_seen_at` are refreshed from the new record.
+    Existing rows keep the earliest known `first_seen_at`; all source-derived
+    fields and `last_seen_at` are refreshed from the new record.
     """
     cursor = connection.execute(
         """
@@ -160,6 +160,7 @@ def upsert_canonical_job(
             salary_min = EXCLUDED.salary_min,
             salary_max = EXCLUDED.salary_max,
             currency = EXCLUDED.currency,
+            first_seen_at = LEAST(canonical_jobs.first_seen_at, EXCLUDED.first_seen_at),
             last_seen_at = EXCLUDED.last_seen_at,
             is_active = EXCLUDED.is_active
         """,

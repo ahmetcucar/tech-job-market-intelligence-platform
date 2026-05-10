@@ -161,7 +161,7 @@ def iter_raw_payload_rows(
             payload_json
         FROM raw_job_payloads
         {where_clause}
-        ORDER BY source_name, source_company, source_job_id, fetched_at, raw_payload_id
+        ORDER BY source_name, source_company, source_job_id, last_seen_at, fetched_at, raw_payload_id
         """,
         params,
     )
