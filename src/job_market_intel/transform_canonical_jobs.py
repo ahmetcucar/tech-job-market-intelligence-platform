@@ -264,3 +264,7 @@ def _raw_payload_row_from_database_row(row: Any) -> RawPayloadRow:
         fetched_at=row[4],
         payload_json=row[5],
     )
+
+
+if __name__ == "__main__":
+    main()
