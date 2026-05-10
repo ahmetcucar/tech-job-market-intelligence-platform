@@ -90,8 +90,8 @@ def canonical_record_from_raw_payload(row: RawPayloadRow) -> CanonicalJobRecord:
         A complete canonical job record ready for database upsert.
 
     Raises:
-        ValueError: If the raw payload does not contain a usable Greenhouse job
-            ID and cannot be safely assigned canonical identity.
+        ValueError: If the Bronze row does not contain a usable source job ID
+            and cannot be safely assigned canonical identity.
     """
     source_job_id = _clean_optional_string(row.source_job_id)
     if source_job_id is None:
