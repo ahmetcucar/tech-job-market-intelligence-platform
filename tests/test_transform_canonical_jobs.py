@@ -105,6 +105,18 @@ def test_canonical_record_from_raw_payload_maps_greenhouse_fields() -> None:
     )
 
 
+def test_canonical_record_uses_bronze_source_job_id_for_identity() -> None:
+    """Canonical identity should come from the stored Bronze source job ID."""
+    payload = greenhouse_payload()
+    payload["id"] = "payload-id-that-differs"
+    row = raw_payload_row(payload=payload)
+
+    record = canonical_record_from_raw_payload(row)
+
+    assert record.job_id == canonical_job_id("greenhouse", "Databricks", "123")
+    assert record.source_job_id == "123"
+
+
 def test_iter_raw_payload_rows_reads_bronze_rows_in_deterministic_order() -> None:
     """Bronze rows should be read in the order defined by the Milestone 3 spec."""
     connection = FakeConnection(
@@ -133,7 +145,14 @@ def test_iter_raw_payload_rows_reads_bronze_rows_in_deterministic_order() -> Non
 def test_transform_canonical_jobs_counts_written_and_skipped_rows() -> None:
     """Transform summary should report read, written, and skipped raw rows."""
     valid_row = raw_payload_row()
-    malformed_row = raw_payload_row(payload={"title": "Missing source id"})
+    malformed_row = RawPayloadRow(
+        raw_payload_id="raw-missing-id",
+        source_name="greenhouse",
+        source_company="Databricks",
+        source_job_id="",
+        fetched_at=datetime(2026, 5, 10, 12, 0, tzinfo=UTC),
+        payload_json={"title": "Missing source id"},
+    )
     written_records: list[CanonicalJobRecord] = []
 
     def upsert_job(connection: object, record: CanonicalJobRecord) -> CanonicalJobUpsertResult:

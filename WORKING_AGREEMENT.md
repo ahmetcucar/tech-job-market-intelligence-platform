@@ -18,6 +18,14 @@ This project is being built as a learning project, not a speedrun.
 - Use inline comments for non-obvious decisions only. Avoid comments that restate simple code.
 - Keep documentation current as part of each code change, not as a cleanup task for later.
 
+## Branch Completion Standard
+
+- Before finishing any feature branch, run an independent code-review agent against the branch changes.
+- Treat reviewer feedback as part of the feature work, not as optional polish.
+- Fix critical and important review findings before merging, pushing a PR, or declaring the branch complete.
+- If a review finding is incorrect, document the reasoning and the evidence before proceeding.
+- Repeat review after fixes when the changes are non-trivial or the reviewer found correctness, data integrity, transaction, or architecture issues.
+
 ## Current Build Philosophy
 
 Start with the smallest useful data product loop:

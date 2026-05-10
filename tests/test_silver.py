@@ -62,7 +62,11 @@ def test_normalize_title_prefers_specific_engineering_roles() -> None:
 def test_classify_remote_type_uses_obvious_text_signals() -> None:
     """Remote classification should be conservative and deterministic."""
     assert classify_remote_type("Engineer", "Remote - US", None, "") == "remote"
+    assert classify_remote_type("Engineer", None, "Remote", "") == "remote"
+    assert classify_remote_type("Engineer", "Remote - US", "New York, NY", "") == "remote"
     assert classify_remote_type("Engineer", "San Francisco", None, "Hybrid role in office") == "hybrid"
+    assert classify_remote_type("Engineer", None, "Hybrid - London", "") == "hybrid"
+    assert classify_remote_type("Engineer", "Hybrid", "New York, NY", "") == "hybrid"
     assert classify_remote_type("Engineer", "New York, NY", "New York, NY", "") == "onsite"
     assert classify_remote_type("Engineer", None, None, "") == "unknown"
 
@@ -106,3 +110,4 @@ def test_parse_source_timestamp_handles_greenhouse_iso_strings() -> None:
     assert parsed == datetime(2026, 5, 1, 17, 30, tzinfo=UTC)
     assert parse_source_timestamp(None) is None
     assert parse_source_timestamp("") is None
+    assert parse_source_timestamp("not-a-timestamp") is None

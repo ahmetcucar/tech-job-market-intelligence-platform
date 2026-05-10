@@ -93,9 +93,9 @@ def canonical_record_from_raw_payload(row: RawPayloadRow) -> CanonicalJobRecord:
         ValueError: If the raw payload does not contain a usable Greenhouse job
             ID and cannot be safely assigned canonical identity.
     """
-    source_job_id = _source_job_id_from_payload(row.payload_json)
+    source_job_id = _clean_optional_string(row.source_job_id)
     if source_job_id is None:
-        raise ValueError("raw payload does not contain a usable source job ID")
+        raise ValueError("raw row does not contain a usable source job ID")
 
     description_html = extract_description_html(row.payload_json)
     description_text = description_text_from_html(description_html)
@@ -226,14 +226,6 @@ def main() -> None:
     print(f"Raw rows read: {summary.raw_rows_read}")
     print(f"Canonical rows written: {summary.canonical_rows_written}")
     print(f"Raw rows skipped: {summary.raw_rows_skipped}")
-
-
-def _source_job_id_from_payload(payload: dict[str, Any]) -> str | None:
-    """Extract the source job ID from a raw source payload."""
-    raw_source_job_id = payload.get("id")
-    if raw_source_job_id is None:
-        return None
-    return _clean_optional_string(raw_source_job_id)
 
 
 def _clean_optional_string(value: Any) -> str | None:

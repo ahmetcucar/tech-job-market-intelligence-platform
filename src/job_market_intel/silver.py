@@ -77,14 +77,15 @@ def classify_remote_type(
     description_text: str | None,
 ) -> str:
     """Classify a job as remote, hybrid, onsite, or unknown from obvious signals."""
-    combined_text = _normalized_text(" ".join(_present_values(title, location_name, description_text)))
-    office_text = _normalized_text(office_location)
+    combined_text = _normalized_text(
+        " ".join(_present_values(title, location_name, office_location, description_text))
+    )
 
     if re.search(r"\bremote\b", combined_text):
         return "remote"
     if re.search(r"\bhybrid\b", combined_text):
         return "hybrid"
-    if office_text or _looks_like_physical_location(location_name):
+    if _looks_like_physical_location(office_location) or _looks_like_physical_location(location_name):
         return "onsite"
 
     return "unknown"
@@ -187,7 +188,10 @@ def parse_source_timestamp(value: str | None) -> datetime | None:
     if not value:
         return None
 
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
