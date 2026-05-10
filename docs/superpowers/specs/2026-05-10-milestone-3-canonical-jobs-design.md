@@ -23,9 +23,10 @@ This milestone covers the full first canonical path:
 - verify reruns update existing canonical rows instead of duplicating them
 
 This milestone does not add skill extraction, Streamlit UI work, company dimensions,
-location dimensions, salary parsing rules, language detection, or job closing logic.
-Those belong to future milestones. Nullable columns may exist for fields such as
-salary and detected language when the data model already calls for them.
+location dimensions, salary parsing rules, years-of-experience extraction, language
+detection, or job closing logic. Those belong to future milestones. Nullable columns
+may exist for fields such as salary and detected language when the data model already
+calls for them.
 
 ## Data Flow
 
@@ -157,6 +158,8 @@ functions with no database or network dependency.
 - `data engineer`
 - `analytics engineer`
 - `machine learning engineer`
+- `ai engineer`
+- `forward deployed engineer`
 - `product manager`
 - `unknown`
 
@@ -213,6 +216,16 @@ allowed values are:
 - `unknown`
 
 This should remain conservative. Ambiguous or non-English titles can stay `unknown`.
+Plain titles such as "Software Engineer" should not imply `mid`. Only explicit signals
+such as "mid-level", "intermediate", or common level markers such as "Engineer II"
+should normalize to `mid`.
+
+### Years Of Experience
+
+Years-of-experience requirements should be deferred. They are useful, but extracting
+them from descriptions needs separate parsing rules for ranges, minimums, preferred
+requirements, and ambiguous phrasing. A future milestone can add fields such as
+`min_years_experience`, `max_years_experience`, and `years_experience_text`.
 
 ## Files And Responsibilities
 
