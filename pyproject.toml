@@ -11,6 +11,9 @@ dependencies = [
     "requests>=2.32.3",
 ]
 
+[project.scripts]
+ingest-greenhouse = "job_market_intel.ingest_greenhouse:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.2",
