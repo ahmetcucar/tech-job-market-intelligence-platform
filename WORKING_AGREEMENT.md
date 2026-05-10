@@ -11,6 +11,13 @@ This project is being built as a learning project, not a speedrun.
 - Do not scaffold large chunks of the application without discussion.
 - After each meaningful change, pause to review what changed and why.
 
+## Documentation Standard
+
+- Every code file should start with a module docstring that explains what the file owns.
+- Every public function should have a docstring that explains what it does, what inputs it expects, what it returns, and any important behavior or failure mode.
+- Use inline comments for non-obvious decisions only. Avoid comments that restate simple code.
+- Keep documentation current as part of each code change, not as a cleanup task for later.
+
 ## Current Build Philosophy
 
 Start with the smallest useful data product loop:
