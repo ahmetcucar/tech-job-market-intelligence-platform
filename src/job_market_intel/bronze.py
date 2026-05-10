@@ -45,5 +45,11 @@ def raw_payload_id(
     Returns:
         A hex-encoded SHA-256 digest that can be used as `raw_payload_id`.
     """
-    raw_identity = "|".join([source_name, source_company, source_job_id, payload_hash])
-    return hashlib.sha256(raw_identity.encode("utf-8")).hexdigest()
+    raw_identity = {
+        "source_name": source_name,
+        "source_company": source_company,
+        "source_job_id": source_job_id,
+        "payload_hash": payload_hash,
+    }
+    canonical_identity = json.dumps(raw_identity, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical_identity.encode("utf-8")).hexdigest()

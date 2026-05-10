@@ -97,6 +97,12 @@ ingest-greenhouse
 
 The command is idempotent for identical payload versions. Rerunning it should report skipped payloads instead of inserting duplicates.
 
+Use a custom config path or database URL when needed:
+
+```bash
+ingest-greenhouse --config config/greenhouse_companies.yml --database-url postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket
+```
+
 ## Target Stack
 
 - **Ingestion:** Python, scheduled jobs, source-specific connectors

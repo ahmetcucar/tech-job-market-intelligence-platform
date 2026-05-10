@@ -35,3 +35,11 @@ def test_raw_payload_id_is_deterministic() -> None:
     second_id = raw_payload_id("greenhouse", "Databricks", "123", payload_hash)
 
     assert first_id == second_id
+
+
+def test_raw_payload_id_preserves_identity_field_boundaries() -> None:
+    """Different identity fields should not collide when values contain delimiters."""
+    first_id = raw_payload_id("greenhouse", "Data|bricks", "123", "abc")
+    second_id = raw_payload_id("greenhouse", "Data", "bricks|123", "abc")
+
+    assert first_id != second_id

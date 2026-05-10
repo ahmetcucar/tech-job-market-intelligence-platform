@@ -1,6 +1,7 @@
 """Tests for the Greenhouse Bronze ingestion command orchestration."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from job_market_intel.ingest_greenhouse import ingest_greenhouse_companies
@@ -46,6 +47,7 @@ def test_ingest_greenhouse_companies_processes_all_configured_companies() -> Non
         source_company: str,
         source_job_id: str,
         payload: dict[str, Any],
+        fetched_at: datetime,
     ) -> FakeInsertResult:
         inserted_jobs.append((source_company, source_job_id))
         return FakeInsertResult(inserted=True)
@@ -82,6 +84,7 @@ def test_ingest_greenhouse_companies_counts_skipped_payloads() -> None:
         source_company: str,
         source_job_id: str,
         payload: dict[str, Any],
+        fetched_at: datetime,
     ) -> FakeInsertResult:
         return FakeInsertResult(inserted=False)
 
@@ -115,6 +118,7 @@ def test_ingest_greenhouse_companies_commits_after_each_company() -> None:
         source_company: str,
         source_job_id: str,
         payload: dict[str, Any],
+        fetched_at: datetime,
     ) -> FakeInsertResult:
         return FakeInsertResult(inserted=True)
 
@@ -126,3 +130,34 @@ def test_ingest_greenhouse_companies_commits_after_each_company() -> None:
     )
 
     assert connection.commits == 2
+
+
+def test_ingest_greenhouse_companies_uses_one_fetched_at_per_company_batch() -> None:
+    """Jobs from one Greenhouse response should share the same fetched_at timestamp."""
+    companies = [{"name": "Databricks", "board_token": "databricks"}]
+    fetched_at_values: list[datetime] = []
+
+    def fetch_jobs(board_token: str) -> list[dict[str, Any]]:
+        return [{"id": 1, "title": "Data Engineer"}, {"id": 2, "title": "Backend Engineer"}]
+
+    def insert_job(
+        connection: object,
+        *,
+        source_name: str,
+        source_company: str,
+        source_job_id: str,
+        payload: dict[str, Any],
+        fetched_at: datetime,
+    ) -> FakeInsertResult:
+        fetched_at_values.append(fetched_at)
+        return FakeInsertResult(inserted=True)
+
+    ingest_greenhouse_companies(
+        connection=FakeConnection(),
+        companies=companies,
+        fetch_jobs=fetch_jobs,
+        insert_job=insert_job,
+    )
+
+    assert len(fetched_at_values) == 2
+    assert fetched_at_values[0] == fetched_at_values[1]

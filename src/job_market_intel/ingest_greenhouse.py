@@ -7,8 +7,11 @@ minimal: each fetched Greenhouse job is stored exactly as a raw payload.
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol
 
 from job_market_intel.config import load_greenhouse_companies
@@ -28,6 +31,7 @@ class InsertRawJob(Protocol):
         source_company: str,
         source_job_id: str,
         payload: dict[str, Any],
+        fetched_at: datetime,
     ) -> RawPayloadInsertResult:
         """Insert one source job payload and return insert metadata."""
 
@@ -77,6 +81,7 @@ def ingest_greenhouse_companies(
         company_name = company["name"]
         board_token = company["board_token"]
         jobs = fetch_jobs(board_token)
+        fetched_at = datetime.now(UTC)
         jobs_fetched += len(jobs)
 
         for job in jobs:
@@ -86,6 +91,7 @@ def ingest_greenhouse_companies(
                 source_company=company_name,
                 source_job_id=str(job["id"]),
                 payload=job,
+                fetched_at=fetched_at,
             )
             if result.inserted:
                 payloads_inserted += 1
@@ -102,11 +108,31 @@ def ingest_greenhouse_companies(
     )
 
 
+def parse_args() -> argparse.Namespace:
+    """Parse command-line options for Greenhouse Bronze ingestion."""
+    parser = argparse.ArgumentParser(
+        description="Store raw Greenhouse job payloads for configured companies.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Path to a Greenhouse company YAML config. Defaults to the repo config file.",
+    )
+    parser.add_argument(
+        "--database-url",
+        default=None,
+        help="Postgres connection URL. Defaults to DATABASE_URL or the local Docker database.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     """Run Greenhouse Bronze ingestion for every configured company."""
-    companies = load_greenhouse_companies()
+    args = parse_args()
+    companies = load_greenhouse_companies(args.config) if args.config else load_greenhouse_companies()
 
-    with connect() as connection:
+    with connect(args.database_url) as connection:
         summary = ingest_greenhouse_companies(connection=connection, companies=companies)
 
     print(f"Companies processed: {summary.companies_processed}")
