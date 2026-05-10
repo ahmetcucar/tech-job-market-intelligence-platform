@@ -86,7 +86,7 @@ docker compose up -d
 Create the initial raw table:
 
 ```bash
-psql postgresql://jobmarket:jobmarket@127.0.0.1:5432/jobmarket -f sql/001_init.sql
+psql postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket -f sql/001_init.sql
 ```
 
 ## Target Stack
