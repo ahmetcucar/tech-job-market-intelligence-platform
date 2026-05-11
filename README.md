@@ -43,7 +43,7 @@ The first version should prove the core loop:
 
 ## Getting Started With The MVP
 
-The first build starts with Greenhouse source discovery, then Bronze raw payload storage in Postgres, then Streamlit.
+The first build starts with Greenhouse source discovery, then Bronze raw payload storage in Postgres, then a Silver canonical jobs layer. Streamlit comes after the data path is reliable.
 
 Create a virtual environment and install the project:
 
@@ -103,15 +103,38 @@ Use a custom config path or database URL when needed:
 ingest-greenhouse --config config/greenhouse_companies.yml --database-url postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket
 ```
 
+The Bronze table stores exact raw payload versions. It also records `last_seen_at` metadata so repeated sightings of an unchanged payload can update observation time without mutating `payload_json` or creating duplicate raw rows.
+
+If you ingested local Bronze data before this milestone was finalized, reset the local Docker volume and reingest so `raw_payload_id` values use the current canonical JSON identity format.
+
+### Milestone 3: Build Canonical Jobs
+
+Create or update the Bronze and Silver tables:
+
+```bash
+psql postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket -f sql/001_init.sql
+psql postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket -f sql/002_canonical_jobs.sql
+```
+
+Transform Bronze raw payloads into Silver canonical jobs:
+
+```bash
+transform-canonical-jobs --database-url postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket
+```
+
+The transform is idempotent. It keeps one canonical row per source job using `(source_name, source_company, source_job_id)`, preserves the earliest known `first_seen_at`, and updates `last_seen_at` from the latest Bronze observation. If an older raw payload version is observed again later, that most recently observed version becomes the current canonical row.
+
+The first canonical layer extracts source fields such as title, company, location, department, URL, source timestamps, and description text. It also adds conservative rule-based values for `normalized_title`, `remote_type`, and `seniority`; ambiguous fields remain `unknown` or `NULL`.
+
 Run Postgres-backed integration tests only against an explicit test database URL:
 
 ```bash
-JOB_MARKET_TEST_DATABASE_URL=postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket pytest tests/test_postgres_integration.py -v
+JOB_MARKET_TEST_DATABASE_URL=postgresql://jobmarket:jobmarket@127.0.0.1:5433/jobmarket .venv/bin/pytest tests/test_postgres_integration.py -v
 ```
 
-These tests create the Bronze table if needed and write temporary rows with generated company names. Do not point `JOB_MARKET_TEST_DATABASE_URL` at a shared or production database.
+These tests create the Bronze and Silver tables if needed and write temporary rows with generated company names. Do not point `JOB_MARKET_TEST_DATABASE_URL` at a shared or production database.
 
-If you ingested local Bronze data before this milestone was finalized, reset the local Docker volume and reingest so `raw_payload_id` values use the current canonical JSON identity format.
+Local dev and test databases are still using the same Docker database by default. The planned follow-up is documented in `docs/superpowers/specs/2026-05-10-database-environment-separation-design.md`.
 
 ## Target Stack
 
